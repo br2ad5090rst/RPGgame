@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>50레벨 판타지 액션 RPG</title>
+<style>
+:root{--bg:#f3efe6;--pn:#fff;--tx:#222;--bd:#d8d2c2;--ac:#7a3cff;color-scheme:light dark;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#14121c;--pn:#211d2e;--tx:#eee;--bd:#3a3450}}
+:root[data-theme="dark"]{--bg:#14121c;--pn:#211d2e;--tx:#eee;--bd:#3a3450}
+html,body{margin:0}body{background:var(--bg);color:var(--tx);font:14px/1.6 system-ui,"Noto Sans KR",sans-serif}
+#w{max-width:680px;margin:auto;padding:8px;position:relative}
+canvas{width:100%;display:block;border-radius:8px;touch-action:none;background:#8fd3ff}#tc{display:flex;justify-content:space-between;margin-top:6px}#tc button{width:52px;height:46px;font-size:18px;touch-action:none;user-select:none}
+.p{background:var(--pn);border:1px solid var(--bd);border-radius:8px;padding:8px;margin-top:8px}
+button{font:inherit;margin:2px;padding:4px 9px;border-radius:6px;border:1px solid var(--bd);background:var(--pn);color:var(--tx);cursor:pointer}
+button.on{background:var(--ac);color:#fff}button:disabled{opacity:.4;cursor:default}
+#pick{position:absolute;inset:8px 8px auto;aspect-ratio:16/9;background:rgba(0,0,0,.85);color:#fff;border-radius:8px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;text-align:center}
+#log{font-size:13px;min-height:6.5em}#bsb{position:absolute;right:18px;top:48px;margin:0;padding:7px 14px;font-weight:bold;font-size:15px;background:#c22;color:#fff;border:2px solid #fc4;border-radius:10px;box-shadow:0 2px 10px #000a}#bsb:disabled{opacity:.45}#rbb{position:absolute;right:18px;top:142px;margin:0;padding:5px 12px;font-weight:bold;background:#7a1f1a;color:#fff;border:2px solid #fc4;border-radius:10px;box-shadow:0 2px 10px #000a}#rtb{position:absolute;right:18px;top:96px;margin:0;padding:5px 12px;font-weight:bold;background:#2a3a8a;color:#fff;border:2px solid #fc4;border-radius:10px;box-shadow:0 2px 10px #000a}#tc .sk{position:relative;width:56px;height:56px;padding:0;overflow:hidden;background:none;border:0}#tc .sk canvas{width:100%;height:100%;display:block;border-radius:0;background:none}#tc .sk i{position:absolute;left:0;right:0;top:0;height:0;background:#000b}#dlg{position:absolute;inset:8px 8px auto;aspect-ratio:16/9;display:none;align-items:flex-end;pointer-events:none}#dlg .box{pointer-events:auto;width:100%;box-sizing:border-box;background:rgba(20,16,40,.94);color:#fff;border:2px solid #fc4;border-radius:10px;padding:10px 12px;margin:0 8px 8%;font-size:14px}#dlg button{color:#222}#dlg button.on{color:#fff}
+</style></head><body><div id="w">
+<canvas id="c"></canvas><button id="rtb" onclick="setRT((RT+1)%3)" style="display:none"></button><button id="rbb" onclick="setRB((RB+1)%3)" style="display:none"></button><button id="bsb" onclick="sb()" style="display:none"></button>
+<div id="dlg"><div class="box" id="db"></div></div><div id="pick"><h2 style="margin:0">⚔ 50레벨 판타지 RPG</h2><div>직업을 선택하세요</div><div>
+<button onclick="start('검사')">검사</button><button onclick="start('궁수')">궁수</button><button onclick="start('마법사')">마법사</button><button onclick="start('도적')">도적</button><button onclick="start('기사')">기사</button></div>
+<button id="cont" class="on" onclick="loadG()" style="display:none">▶ 저장된 게임 이어하기</button><small>이동 ←→ · 점프 Space · 공격 X(꾹) 또는 화면 클릭 · 스킬 1,2,3 · 아래+점프로 발판 내려가기</small></div>
+<div id="tc"><span><button data-k="arrowleft">◀</button><button data-k="arrowright">▶</button></span><span><button data-k=" ">⤒</button><button data-k="x">⚔</button><button data-k="f">💬</button><button class="sk" data-k="1"><canvas width="48" height="48"></canvas><i></i></button><button class="sk" data-k="2"><canvas width="48" height="48"></canvas><i></i></button><button class="sk" data-k="3"><canvas width="48" height="48"></canvas><i></i></button></span></div><div class="p" id="ui"></div><div class="p" id="log"></div>
+</div>
+<script>
+const C=document.getElementById('c'),g=C.getContext('2d'),W=800,H=450,$=i=>document.getElementById(i);C.width=W;C.height=H;
+const CL={
+ 검사:{t:['검사','검성','검황'],hp:140,atk:10,r:60,c:'#e66',w:'검',s:['강타','회전 베기','전투 의지']},
+ 궁수:{t:['궁수','저격수','신궁'],hp:100,atk:11,r:170,c:'#6c6',w:'활',s:['관통 사격','화살비','응급 처치']},
+ 마법사:{t:['마법사','대마법사','현자'],hp:90,atk:13,r:150,c:'#69f',w:'지팡이',s:['화염구','블리자드','마나 치유']},
+ 도적:{t:['도적','암살자','그림자 군주'],hp:110,atk:12,r:55,c:'#a6c',w:'단검',s:['급소 찌르기','쿠나이 난무','은신 회복']},
+ 기사:{t:['기사','용기사','드래곤기사'],hp:170,atk:9,r:60,c:'#fc4',w:'창',s:['창 돌격','대지 강타','성스러운 가호']}};
+const ZN=['슬라임 숲','고블린 동굴','얼음 협곡','용의 계곡','마왕의 성','최종 보스전','레이드'],ZS=[1,11,21,31,41,50,50],
+ ZC=['#1f3a1f','#33281c','#1c2d3d','#3a1f1f','#2b1a33','#12091a'],MC=['#4c4','#8a5','#8cf','#e84','#c4c','#f33','#d22'],
+ MN=['슬라임','고블린','얼음 정령','와이번','마족','마왕','용왕'],PF=['초보자 ','고블린 ','서리 ','용비늘 ','마왕 ','심연의 ','용왕의 '],
+ GR=['일반','고급','희귀','영웅','전설','신화'],GC=['#999','#4a4','#38e','#a4f','#e90','#e34'];
+const WW=1600,GY=380,PL=[[0,GY,WW],[120,290,230],[560,290,230],[1000,290,230],[330,200,220],[770,200,220],[1220,200,220]].map(a=>({x:a[0],y:a[1],w:a[2]}));
+const BG=[['#7cc8ff','#e3f6ff'],['#3b2b3f','#9a6a4a'],['#8fc4f0','#f0fbff'],['#4a1f1f','#e0703a'],['#1a0f2b','#5b3380'],['#05020a','#3a0b4a'],['#12000a','#b01a3a']],
+ GD=['#7a5230','#54402e','#7a8a9a','#6a4030','#40305a','#30204a','#3a1020'],GG=['#5c5','#7a5','#dff','#b74','#96c','#b4d','#f55'];
+let P=null,zn=0,E=[],PR=[],PJ=[],FX=[],keys={},msgs=[],boss=null,last=0,T=0,cam=0,BP=[],SP=[],shake=0;
+const need=L=>Math.floor(25*L**1.8*2),sc=i=>i?(10+i.z*18)*(1+i.g*.5)*(1+i.plus*.12):0,
+ atk=()=>(CL[P.cls].atk+P.lv*3+sc(P.eq.w))*(1+.3*P.tier),mhp=()=>CL[P.cls].hp+P.lv*20+sc(P.eq.a)*3,
+ nm=i=>`<span style="color:${GC[i.g]}">${i.n}</span>`,rnd=Math.random;
+let DLG=0;const Q=a=>({t:a[0],k:a[1],n:a[2],a:a[3],d:a[4],r:a[5]}),
+NP=[
+{n:'촌장 마르코',c:'#b57',h:'#ccc',s:'어서 오게, 젊은 용사여. 요즘 슬라임 숲의 기운이 이상하네. 마왕의 부활 징조인 것 같아…',e:'자네 덕분에 숲이 평화로워졌네. 고블린 동굴 쪽을 조심하게!',q:[['슬라임 15마리 처치','kill',15,'숲을 어지럽히는 슬라임을 15마리만 처치해 주게.','고맙네! 약소하지만 보상일세.',[150,.3,3,-1]],['숲의 보스 처치','boss',1,'숲 깊은 곳에 우두머리가 있다네. 놈을 쓰러뜨려 주게!','해냈구나! 마왕의 흔적은 고블린 동굴로 이어지고 있다고 하네.',[400,.5,5,2]]].map(Q)},
+{n:'광부 브란',c:'#7a5',h:'#a63',s:'폐광이 고블린들에게 점령당했어! 동료 광부들이 아직 갇혀 있다고!',e:'덕분에 광부들을 구했어. 광산 벽에서 마왕의 문장을 발견했지. 얼음 협곡으로 가보게.',q:[['고블린 20마리 처치','kill',20,'입구를 막고 있는 고블린 20마리를 처치해 줘!','대단해! 길이 뚫렸어.',[300,.3,4,-1]],['고블린 두목 처치','boss',1,'광산 깊은 곳의 두목만 쓰러뜨리면 끝이야!','두목이 마왕의 문장이 새겨진 돌을 떨어뜨렸어. 협곡의 현자를 찾아가 봐.',[800,.5,6,3]]].map(Q)},
+{n:'설원의 현자 엘사',c:'#6ad',h:'#eef',s:'협곡의 얼음이 마왕의 기운에 깨어나고 있어요. 봉인의 조각이 위험해요…',e:'봉인의 조각을 모았군요. 이제 용의 계곡으로 향하세요.',q:[['얼음 정령 25마리 처치','kill',25,'폭주한 얼음 정령 25마리를 진정시켜 주세요.','정령들이 잠잠해졌어요. 고마워요.',[600,.3,5,-1]],['협곡의 보스 처치','boss',1,'얼음 던전의 수호자가 봉인 조각을 품고 있어요. 되찾아 주세요!','봉인의 조각을 되찾았군요! 이 조각은 마왕을 막을 열쇠예요.',[1500,.5,8,3]]].map(Q)},
+{n:'용족 장로 이그니스',c:'#d63',h:'#fc6',s:'용의 계곡의 와이번들이 마왕에게 조종당하고 있다. 용족의 자존심을 지켜다오.',e:'용족의 축복이 그대와 함께하길. 이제 마왕의 성으로 가라!',q:[['와이번 30마리 처치','kill',30,'조종당하는 와이번 30마리를 쓰러뜨려 주게.','그들의 영혼도 편히 쉴 것이다.',[1000,.3,6,-1]],['계곡의 보스 처치','boss',1,'고대 유적의 수호룡을 해방시켜 주게.','수호룡이 해방되었다! 용족의 축복을 받아라!',[2500,.5,10,4]]].map(Q)},
+{n:'기사단장 레온',c:'#58c',h:'#fa3',s:'마왕의 성이 눈앞이다. 이곳이 마지막 관문이지. 준비는 되었나?',e:'50레벨이 되면 마왕에게 도전할 수 있다. 행운을 빈다, 용사여!',q:[['마족 35마리 처치','kill',35,'성을 지키는 마족 35마리를 처치하라!','훌륭하다! 성문이 열렸다.',[1800,.3,8,-1]],['성의 보스 처치','boss',1,'성의 수문장을 쓰러뜨려라. 그러면 마왕에게 닿을 수 있다.','수문장을 쓰러뜨렸군! 이제 50레벨이 되면 마왕이 기다린다.',[4000,.5,12,4]]].map(Q)},
+{n:'영웅의 유령 아델',c:'#9ac',h:'#fff',s:'나는 과거 마왕에게 패한 영웅… 마왕을 쓰러뜨릴 자는 이제 그대뿐이다.',e:'세상은 구원받았다. 하지만 용왕이 깨어났다는 소문이 들린다…',q:[['마왕 처치','boss',1,'마왕을 쓰러뜨려 이 세상을 구해다오!','마침내 해냈구나! 그대는 진정한 영웅이다. 세상이 구원받았다!',[10000,0,20,5]]].map(Q)},
+{n:'예언자 시빌',c:'#c4a',h:'#f8f',s:'용왕 바르카스가 분노하고 있어요. 그를 잠재울 수 있는 건 당신뿐이에요.',e:'용왕이 잠들었어요. 하지만 더 강한 분노가 깨어날지도 몰라요…',q:[['용왕 레이드 클리어','boss',1,'용왕 바르카스를 쓰러뜨려 주세요. 3페이즈를 조심하세요!','전설이 되셨군요! 이 보상을 받아주세요.',[20000,0,30,5]]].map(Q)}];
+function talk(){if(!P||DLG||!NP[zn]||Math.abs(P.x-300)>90)return;DLG=1;dlg()}
+let DPG=[],DPI=0;
+const DX=[
+{i:['이 마을은 대대로 슬라임 숲과 함께 살아왔지. 숲은 우리에게 약초와 땔감을 주었고, 우리는 숲의 균형을 지켰네.','그런데 보름 전부터 달라졌어. 얌전하던 슬라임들이 사람만 보면 달려들고, 숲 깊은 곳에서는 붉은 빛이 새어 나온다네.','옛 전설에 이르길, 마왕이 깨어날 때 숲의 짐승들이 먼저 광기에 물든다 했지… 자네가 그 전설을 끝내 줄 사람이길 바라네.'],a:[['먼저 숲의 슬라임부터 줄여야 하네. 숫자가 너무 늘어서 마을 사람들은 숲에 들어갈 엄두도 못 내고 있다네.'],['숲의 우두머리, 우리는 “젤리왕”이라 부르지. 그 녀석이 숲의 기운을 빨아들여 다른 슬라임을 미치게 만들고 있어.','조심하게. 덩치는 크지만 움직임은 둔하네. 틈을 보고 파고들게!']],d:[['정말 15마리나 잡았단 말인가? 숲이 벌써 조용해진 것 같네.'],['젤리왕이 쓰러지며 이상한 검은 돌을 남겼네. 마왕의 문장이 새겨져 있어…','역시 전설이 사실이었어. 폐광의 광부 브란에게 이 돌을 보여주게.']],r:['요즘 밤마다 숲에서 붉은 빛이 번쩍이는 걸 봤다는 아이들이 많다네.','내 손자도 자네처럼 용사가 되고 싶어 하지. 칼 대신 나무 막대기를 들고 설치고 있다네, 허허.','초보 시절엔 무리하지 말게. 쓰러져도 부활하지만, 포기하면 거기서 끝이야.','레벨이 오르면 스킬 포인트를 잊지 말고 투자하게. 20레벨에는 전직도 할 수 있다네.']},
+{i:['나는 이 폐광에서 30년을 일한 광부 브란이다. 이 광산의 모든 갱도를 눈 감고도 걸을 수 있지!','그런데 한 달 전 고블린 떼가 쏟아져 나왔어. 놈들이 평소엔 이렇게 조직적이지 않거든. 누군가 놈들을 지휘하는 게 분명해.','광부 열두 명이 아직 갱도 안쪽에 갇혀 있어. 부탁이야, 도와줘!'],a:[['먼저 입구 근처 고블린부터 쓸어 줘. 놈들 곡괭이질에 갱도가 무너질 수도 있어!'],['갱도 가장 깊은 곳에 두목 고블린이 있어. 덩치도 크고 도끼도 두 자루야. 정면으로만 싸우지 말고 점프로 피해!']],d:[['고블린들이 물러났어! 이제 갱도가 숨을 쉬는 것 같군.'],['두목이 쓰러졌다고? 이건 마왕의 문장이 새겨진 돌이야… 마르코 촌장이 말한 게 이거였군!','이 돌은 얼음 협곡의 현자 엘사가 해석할 수 있을 거야. 그녀를 찾아가 봐.']],r:['고블린은 반짝이는 걸 좋아해. 그래서 광석을 훔쳐 가는 거지.','갱도 안쪽에는 아직 캐지 못한 희귀 광석이 있어. 평화가 오면 자네에게 제일 먼저 나눠 주지.','장비는 강화할수록 강해지지만 실패하면 한 단계 내려갈 수도 있어. +5 이상은 신중하게!','내 곡괭이 한 방이면 바위도 쪼개지만… 고블린 두목 앞에서는 손이 떨리더라고.']},
+{i:['…어서 오세요. 이곳 얼음 협곡은 본래 고요한 곳이었어요. 수천 년간 얼음 속에 봉인된 힘을 지키는 것이 제 임무랍니다.','하지만 마왕의 기운이 스며들며 얼음이 깨어났어요. 정령들이 울부짖고, 협곡의 빙하가 하나둘 갈라지고 있어요.','당신이 가진 문장이 새겨진 돌은 마왕 봉인의 조각이에요. 총 셋이 모여야 마왕을 막을 수 있지요.'],a:[['먼저 폭주한 정령들을 진정시켜 주세요. 정령은 원래 자연의 수호자인데… 슬픈 일이에요.'],['협곡 깊은 곳 얼음 던전에 봉인의 조각이 있어요. 수호자는 얼음 마법에 능하니 거리를 두고 싸우세요.']],d:[['정령들이 편히 쉬게 되었군요. 감사해요.'],['봉인의 조각을 찾았군요! 이걸로 두 번째 조각이에요. 마지막 조각은 용족이 지키고 있답니다.','용의 계곡의 장로 이그니스를 찾아가세요. 그는 오만하지만 누구보다 마왕을 미워하지요.']],r:['협곡의 눈꽃은 한 송이마다 정령의 눈물이라 불려요. 아름답지만 가슴 아픈 이름이죠.','마법사 계열은 스킬 포인트를 화염구에 몰아주는 걸 좋아하더군요. 하지만 균형도 중요해요.','전직하면 한층 강해져요. 기사는 용을 타게 된답니다. 용기사의 모습은 정말 장엄하죠.','50레벨이 되면 용왕이 깨어난다는 예언도 있어요… 제 눈엔 아직도 선명하게 보여요.']},
+{i:['인간이라… 오랜만이군. 나는 이 용의 계곡을 수천 년 지켜 온 이그니스다. 불꽃의 숨결로 이 계곡을 지켰지.','하지만 자랑스러운 용의 후예들이 마왕의 저주로 와이번처럼 변해 버렸다. 이것은 우리 용족의 치욕이다.','마지막 봉인의 조각은 내 보물창고에 있다. 허나, 그대의 힘을 먼저 증명해야 줄 수 있다.'],a:[['저주받은 와이번을 처치해 다오. 그들도 본래는 우리의 동족이었다. 이것은 자비의 칼이다.'],['고대 유적에는 수호룡이 있다. 나의 오랜 친구였지. 그가 더 이상 괴로워하지 않도록 해방시켜 주게.']],d:[['…고맙다. 동족들의 영혼이 하늘로 돌아가는 것이 느껴진다.'],['세 번째 봉인의 조각, 약속대로 건네주지. 이제 세 조각이 모두 모였다.','이 조각들을 가진 자는 마왕에게 맞설 자격이 있다. 마왕의 성으로 가거라. 그리고 반드시 이겨라!']],r:['용족은 기사 중에서도 진정한 용사에게만 등을 내어준다. 용기사가 되면 그 의미를 알게 될 것이다.','용의 불꽃은 단지 파괴가 아니다. 정화의 불꽃이기도 하지.','와이번의 비늘로 만든 장비는 특히 강하다. 용비늘 장비를 노려 보게.','50레벨이 되면 용왕 바르카스와 마주하게 될 것이다. 그는 우리의 왕이었으나… 지금은 분노에 사로잡혀 있다.']},
+{i:['나는 왕국 기사단의 단장 레온이다. 우리 기사단은 마왕의 성을 포위하고 있지만, 성안으로 진입할 방법이 없어 막혀 있다.','마왕의 부하 마족은 하나하나가 정예 기사 셋의 힘을 가졌다. 병사들을 잃는 것이 두려워 진격 명령을 못 내리고 있어.','하지만 세 조각의 봉인을 지닌 자라면 얘기가 다르다. 그대가 길을 열어 주길 바란다.'],a:[['먼저 성문 앞의 마족을 정리해 줘. 놈들이 한 번에 몰려오기 전에 숫자를 줄여야 해.'],['성문 수문장을 쓰러뜨리지 못하면 어떤 군대도 진입할 수 없다. 수문장은 강력한 마법탄을 쏜다. 침착하게 피하며 싸워라!']],d:[['과연 소문대로군. 성문 앞이 한결 조용해졌다.'],['수문장이 무너졌다! 기사단 전체가 환호하고 있다.','이제 남은 건 마왕뿐이다. 그대가 50레벨에 도달하면 봉인의 힘이 완전히 개방된다. 그날을 기다리겠다.']],r:['내 검은 이제 세월에 무뎌졌지만, 자네 같은 젊은이의 검이 길을 열 것을 믿네.','마왕의 성에서는 전설 장비가 나온다고 하더군. 강화석도 넉넉히 챙겨 가게.','쓰러졌다고 포기하지 마라. 쓰러진 만큼 배우는 법이다.','성을 평정하면 이 왕국의 모든 마을에서 자네 이름을 노래할 거야.']},
+{i:['…오래전 나도 그대처럼 검을 들고 이 자리에 섰었다. 하지만 결국 마왕에게 패배하고 유령이 되어 이곳에 머무르고 있다.','마왕은 두려움을 먹고 자라는 존재다. 쉽게 쓰러지지 않을 것이다. 그러나 그대에게는 세 개의 봉인이 있다.','나의 모든 힘을 그대에게 맡기겠다. 부디 이번에는… 이 지긋지긋한 악몽을 끝내 다오.'],a:[],d:[['…끝났는가? 정말로 끝난 것인가!','오랜 세월 나를 붙잡던 사슬이 풀리는 것이 느껴진다. 고맙다, 용사여.']],r:['마왕은 일정한 간격으로 탄막을 쏜다. 점프와 이동을 섞어서 피하는 게 요령이다.','신화 장비는 최종 보스의 선물이다. 반복 도전할수록 난이도가 올라가지만 더 강해질 것이다.','그대의 이름은 이제 전설이 될 것이다.','…하지만 평화 뒤에는 늘 새로운 위협이 도사리고 있지. 용왕의 분노를 조심하라.']},
+{i:['오셨군요, 영웅이시여. 마왕이 쓰러진 뒤에도 평화는 오래가지 못했어요. 용왕 바르카스가 눈을 뜬 거예요.','그는 마왕의 저주에 오랜 세월 시달린 끝에 분노에 눈이 멀었어요. 이제는 적과 아군을 구분하지 못해요.','바르카스를 진정시킬 수 있는 건 마왕을 쓰러뜨린 당신뿐이에요. 하지만 그는 세 번 변신할 거예요. 각오하세요.'],a:[],d:[['…믿을 수가 없어요. 바르카스가 평온한 얼굴로 눈을 감았어요.','당신은 진정한 전설이에요. 하지만 그의 분노는 한층 더 강해져 돌아올지도 몰라요.']],r:['1페이즈에서는 침착하게 탄막을 피하세요. 2페이즈부터 졸개가 나와요!','3페이즈에서는 탄막이 매우 빨라져요. 스킬 쿨타임을 아껴 두세요.','신화 장비를 +10까지 강화하면 얼마나 강해질지 궁금하지 않으세요?','다시 도전할 때마다 용왕은 더 강해져요. 하지만 보상도 그만큼 커진답니다.']}];
+const BT='💡 보스는 화면 오른쪽 위의 [보스 소환] 버튼이나 B 키로 불러낼 수 있어요. 소환하면 맵 중앙에 나타나고, 쓰러뜨리면 다시 소환할 수 있어요. 50레벨이 되면 최종 보스와 용왕 레이드 지역에서도 같은 버튼으로 도전해요. 레벨이 모자라면 버튼이 회색이에요.';DX.forEach(x=>x.r.push(BT));
+function dlg(){const z=zn,n=NP[z],i=P.q[z],q=n.q[i],a=P.qa[z],x=DX[z];
+ if(!q)DPG=[n.e].concat(x.r);
+ else if(!a)DPG=(i==0?[n.s].concat(x.i,[BT]):[]).concat(x.a[i]||[],q.k=='boss'?[BT]:[],['<b>'+q.a+'</b><br><i>📜 '+q.t+'</i>']);
+ else if(P.qp[z]>=q.n)DPG=(x.d[i]||[]).concat([q.d]);
+ else DPG=['아직 끝나지 않았군요. ('+q.t+' '+P.qp[z]+'/'+q.n+')',q.k=='boss'?BT:x.r[Math.random()*x.r.length|0]];
+ DPI=0;show()}
+function show(){const z=zn,n=NP[z],q=n.q[P.q[z]],a=P.qa[z],last=DPI>=DPG.length-1;let b='';
+ if(!last)b='<button class="on" onclick="DPI++;show()">다음 ▶ ('+(DPI+1)+'/'+DPG.length+')</button>';
+ else{if(q&&!a)b='<button class="on" onclick="qA()">📜 수락</button>';else if(q&&P.qp[z]>=q.n)b='<button class="on" onclick="qD()">🎁 보상 받기</button>';b+='<button onclick="chat()">💬 이야기 더 듣기</button>'}
+ b+='<button onclick="cd()">닫기</button>';
+ $('db').innerHTML='<b style="color:#fd6">'+n.n+'</b><div style="margin:6px 0;min-height:3.2em">'+DPG[DPI]+'</div>'+b;$('dlg').style.display='flex'}
+function chat(){DPG=DX[zn].r.slice().sort(()=>Math.random()-.5).slice(0,2);DPI=0;show()}
+function dlgOld(){const z=zn,n=NP[z],i=P.q[z],q=n.q[i],a=P.qa[z];let t,b='<button onclick="cd()">닫기</button>';
+ if(!q)t=n.e;else if(!a){t=(i==0?n.s+'<br>':'')+q.a+'<br><i>📜 '+q.t+'</i>';b='<button class="on" onclick="qA()">수락</button>'+b}
+ else if(P.qp[z]>=q.n){t=q.d;b='<button class="on" onclick="qD()">🎁 보상 받기</button>'}
+ else t='진행 중이에요: '+q.t+' ('+P.qp[z]+'/'+q.n+')';
+ $('db').innerHTML='<b style="color:#fd6">'+n.n+'</b><div style="margin:4px 0">'+t+'</div>'+b;$('dlg').style.display='flex'}
+function cd(){DLG=0;$('dlg').style.display='none'}
+function qA(){P.qa[zn]=1;P.qp[zn]=0;log('📜 퀘스트 수락: '+NP[zn].q[P.q[zn]].t);cd();renderUI()}
+function qD(){const z=zn,q=NP[z].q[P.q[z]],r=q.r;P.gold+=r[0];if(P.lv<50){P.xp+=need(P.lv)*r[1]*.5;while(P.lv<50&&P.xp>=need(P.lv)){P.xp-=need(P.lv);P.lv++;P.sp++;P.hp=mhp();fx({k:'lv',t:1.4});log('🎉 레벨 '+P.lv+' 달성!');if(P.lv==20||P.lv==40)log('⭐ 전직이 가능합니다!')}}
+ P.st+=r[2];if(r[3]>=0)drop(r[3],z);P.q[z]++;P.qa[z]=0;log('✅ 퀘스트 완료: '+q.t+' (+'+r[0]+'G, 강화석 +'+r[2]+')');renderUI();dlg()}
+function npcDraw(){const n=NP[zn];if(!n)return;const x=300,y=GY,f=P.x<x?-1:1,b=Math.sin(T*3)*2,q=n.q[P.q[zn]],a=P.qa[zn];
+ el(x,y,14,4,'#0004');g.save();g.translate(x,y);g.scale(f,1);g.fillStyle=n.c;g.beginPath();g.moveTo(-13,0);g.lineTo(-9,-34);g.lineTo(9,-34);g.lineTo(13,0);g.fill();g.fillStyle='#0003';g.fillRect(-11,-20,22,3);
+ el(0,-44,13,12,'#ffd9b8');g.fillStyle=n.h;g.beginPath();g.ellipse(0,-47,14,10,0,3.14,6.28);g.fill();el(5,-43,2.4,3.2,'#222');el(-4,-43,2.4,3.2,'#222');el(0,-39,3,2,'#f99');g.restore();
+ const m=!q?'':!a?'!':P.qp[zn]>=q.n?'?':'…';g.textAlign='center';if(m){g.font='bold 26px sans-serif';g.fillStyle=m=='?'?'#4f8':m=='!'?'#fd2':'#bbb';g.strokeStyle='#000';g.lineWidth=4;g.strokeText(m,x,y-70+b);g.fillText(m,x,y-70+b)}
+ g.font='bold 12px sans-serif';g.fillStyle='#000a';g.fillRect(x-45,y+5,90,16);g.fillStyle='#fd6';g.fillText(n.n,x,y+17);
+ if(Math.abs(P.x-x)<90&&!DLG){g.fillStyle='#fff';g.strokeStyle='#000';g.lineWidth=3;g.strokeText('💬 F / 버튼으로 대화',x,y-92);g.fillText('💬 F / 버튼으로 대화',x,y-92)}}
+let SKC='';
+function drawIc(cv,i){const c=cv.getContext('2d'),k=CL[P.cls].c,t=P.cls,r=Math.PI;c.clearRect(0,0,48,48);
+ const gr=c.createRadialGradient(24,16,3,24,24,36);gr.addColorStop(0,k);gr.addColorStop(1,'#1b2236');c.fillStyle=gr;c.beginPath();c.roundRect(1,1,46,46,9);c.fill();c.strokeStyle=P.tier>1?'#fe6':'#fc4';c.lineWidth=2.5;c.stroke();
+ c.strokeStyle='#fff';c.fillStyle='#fff';c.lineWidth=4;c.lineCap='round';
+ if(i==0){if(t=='궁수'){c.beginPath();c.moveTo(8,38);c.lineTo(38,10);c.stroke();c.beginPath();c.moveTo(40,8);c.lineTo(28,10);c.lineTo(38,20);c.fill();c.lineWidth=2;c.beginPath();c.moveTo(8,38);c.lineTo(8,30);c.moveTo(8,38);c.lineTo(16,38);c.stroke()}
+  else if(t=='마법사'){c.fillStyle='#fa3';c.beginPath();c.arc(26,22,10,0,7);c.fill();c.fillStyle='#fe8';c.beginPath();c.arc(26,22,5,0,7);c.fill();c.strokeStyle='#f63';c.lineWidth=3;c.beginPath();c.moveTo(16,28);c.lineTo(6,38);c.moveTo(18,22);c.lineTo(7,24);c.stroke()}
+  else{c.beginPath();c.moveTo(9,39);c.lineTo(37,9);c.stroke();c.lineWidth=2;c.beginPath();c.arc(30,16,11,2.1,4.4);c.stroke();c.fillStyle='#fd4';c.beginPath();c.arc(38,10,3,0,7);c.fill()}}
+ else if(i==1){if(t=='궁수'){c.lineWidth=3;for(let j=0;j<3;j++){c.beginPath();c.moveTo(12+j*10,8);c.lineTo(6+j*10,36);c.stroke()}}
+  else if(t=='마법사'){c.lineWidth=3;for(let j=0;j<3;j++){const a=j*r/3;c.beginPath();c.moveTo(24+Math.cos(a)*15,24+Math.sin(a)*15);c.lineTo(24-Math.cos(a)*15,24-Math.sin(a)*15);c.stroke()}}
+  else{c.lineWidth=4;c.beginPath();c.arc(24,24,12,.5,5.5);c.stroke();c.beginPath();c.moveTo(35,10);c.lineTo(38,22);c.lineTo(27,19);c.fill()}}
+ else{c.fillStyle='#6f9';c.fillRect(20,9,8,30);c.fillRect(9,20,30,8);c.fillStyle='#fff8';c.fillRect(22,11,2,26)}
+ c.fillStyle='#fd6';c.font='bold 13px sans-serif';c.strokeStyle='#000';c.lineWidth=3;c.strokeText(i+1,5,43);c.fillText(i+1,5,43)}
+function updSk(){if(!P)return;{const bb=$('bsb'),t=zn==6?'🐲 '+RD[RT].n+' · '+BN[RB].n.slice(0,2)+' 도전':zn==5?'👹 최종 보스 도전':'👹 보스 소환 (B)';bb.style.display='';if(bb.textContent!=t)bb.textContent=t;bb.disabled=!!boss||P.lv<ZS[zn]||!!DLG||(zn==6&&!rdOK(RT));{const rb=$('rtb');rb.style.display=zn==6?'':'none';if(zn==6){const u='🔄 '+RD[RT].n+(rdOK(RT)?' 🟢':' ✔');if(rb.textContent!=u)rb.textContent=u;rb.disabled=!!boss}{const r2=$('rbb');r2.style.display=zn==6?'':'none';if(zn==6){const u2='👹 '+BN[RB].n;if(r2.textContent!=u2)r2.textContent=u2;r2.disabled=!!boss}}}}const b=document.querySelectorAll('.sk'),key=P.cls+P.tier;if(SKC!=key){SKC=key;b.forEach((e,i)=>drawIc(e.firstChild,i))}
+ b.forEach((e,i)=>{e.lastChild.style.height=(P.cd[i]>0?100*P.cd[i]/[3,6,12][i]:0)+'%';e.style.filter=P.sk[i]?'':'grayscale(1) brightness(.55)'})}
+let RT=0;const RD=[{n:'일간 레이드',k:'d',hp:60000,dm:1.8,g:[5],st:8,gold:15000},{n:'주간 레이드',k:'w',hp:200000,dm:2.4,g:[5,5,5],st:25,gold:50000},{n:'월간 레이드',k:'m',hp:800000,dm:3.2,g:[5,5,5,5,5],st:80,gold:200000}];
+function pk(k){const d=new Date(),p=n=>String(n).padStart(2,'0'),ds=x=>x.getFullYear()+'-'+p(x.getMonth()+1)+'-'+p(x.getDate());if(k=='d')return ds(d);if(k=='m')return d.getFullYear()+'-'+p(d.getMonth()+1);const m=new Date(d);m.setDate(d.getDate()-((d.getDay()+6)%7));return ds(m)}
+function rdOK(i){P.rd=P.rd||{};return P.rd[RD[i].k]!=pk(RD[i].k)}
+function rdLeft(k){const d=new Date();let n;if(k=='d')n=new Date(d.getFullYear(),d.getMonth(),d.getDate()+1);else if(k=='m')n=new Date(d.getFullYear(),d.getMonth()+1,1);else n=new Date(d.getFullYear(),d.getMonth(),d.getDate()+(8-(d.getDay()||7)));const s=Math.floor((n-d)/6e4),h=Math.floor(s/60);return h>=48?Math.floor(h/24)+'일 후':h+'시간 '+s%60+'분 후'}
+function setRT(i){RT=i;renderUI()}
+DX[6].r.push('용왕 레이드는 일간, 주간, 월간 세 종류예요. 일간은 매일, 주간은 매주 월요일, 월간은 매월 1일에 초기화돼요. 클리어하면 신화 장비를 주는데 일간 1개, 주간 3개, 월간은 무려 5개예요!');
+let RB=0,SPW={rb:0,sealed:0};const BN=[{n:'화염룡 바르카스',c:'#d22',dn:0,sp:230},{n:'빙룡 글라시아',c:'#5bd',dn:-2,sp:310},{n:'독룡 베노마',c:'#6a2',dn:2,sp:170}];
+function setRB(i){RB=i;renderUI()}
+function bnm(b){return b.sealed?'🔒 봉쇄 용들의 레이드 · 남은 '+E.filter(x=>x.b).length+'마리':'🐲 '+BN[b.rb||0].n+' · '+RD[RT].n+' · '+((b.ph||0)+1)+'페이즈'}
+DX[6].r.push('레이드에서는 보스를 직접 고를 수 있어요. 화염룡, 빙룡, 독룡 중 마음에 드는 상대를 고르세요. 그리고 소문이 하나 있는데… 도전할 때마다 1% 확률로 봉인된 용들이 한꺼번에 깨어난다고 해요. 바로 「봉쇄 용들의 레이드」예요! 클리어하면 신화 장비를 3개나 더 받는대요.');
+const SK_='fantasyrpg_save_v1';
+function saveG(m){if(!P)return;try{localStorage.setItem(SK_,JSON.stringify({P:Object.assign({},P,{x:100,y:GY,vx:0,vy:0,cd:[0,0,0]}),zn}));if(m)log('💾 저장되었습니다')}catch(e){if(m)log('저장 실패: 이 환경에서는 저장소를 쓸 수 없어요')}}
+function hasSave(){try{return !!localStorage.getItem(SK_)}catch(e){return false}}
+function loadG(){try{const d=JSON.parse(localStorage.getItem(SK_));if(!d||!d.P)return;P=d.P;P.hp=mhp();$('pick').style.display='none';go(d.zn||0);log('📂 저장된 게임을 불러왔어요! 환영합니다, '+CL[P.cls].t[P.tier]+'.')}catch(e){}}
+function log(t){msgs.unshift(t);msgs.length=Math.min(msgs.length,5);$('log').innerHTML=msgs.join('<br>')}
+function start(c){P={cls:c,tier:0,lv:1,xp:0,gold:100,st:3,sp:1,sk:[0,0,0],cd:[0,0,0],ac:0,sw:0,inv:0,stun:0,drop:0,x:100,y:GY,vx:0,vy:0,face:1,onG:1,eq:{w:null,a:null},clear:0,q:[0,0,0,0,0,0,0],qa:[0,0,0,0,0,0,0],qp:[0,0,0,0,0,0,0]};P.hp=mhp();$('pick').style.display='none';go(0);log('모험 시작! 레벨업 후 스킬 포인트의 + 버튼으로 스킬을 배우세요.')}
+function go(z){DLG=0;$('dlg').style.display='none';zn=z;E=[];PR=[];PJ=[];boss=null;FX=[];P.x=100;P.y=GY;BP=[];for(let i=0;i<40;i++)BP.push({x:rnd()*WW,y:rnd()*GY,s:1+rnd()*3});renderUI()}
+function fx(o){FX.push(Object.assign({t:.35},o))}
+function spawn(b){const z=zn,lv=z>=5?50:Math.min(49,ZS[z]+(b?9:Math.floor(rnd()*10))),pl=b?PL[0]:PL[Math.floor(rnd()*PL.length)],
+ hp=b?(z==6?RD[RT].hp:z==5?30000*(1+.8*P.clear):(12+lv*8)*12):12+lv*8,r=b?(z==6?75:z==5?58:42):16;
+ const e={x:b?WW/2:pl.x+30+rnd()*(pl.w-60),y:pl.y,pl,lv,hp,mh:hp,dmg:(3+lv*1.5)*(b?(z==6?RD[RT].dm:1.8):1),sp:(45+z*6)*(b?.8:1),cd:1,b,z,r,sh:2,dir:rnd()<.5?1:-1,hurt:0};if(b&&z==6){e.rb=SPW.rb;e.sealed=SPW.sealed;if(e.sealed){e.mh=e.hp=Math.floor(e.hp*.6);e.x=WW/2+(SPW.rb-1)*320}}if(!b&&Math.abs(e.x-P.x)<160&&Math.abs(e.y-P.y)<40)e.x=Math.max(e.pl.x+20,Math.min(e.pl.x+e.pl.w-20,e.x+(e.x<P.x?-1:1)*260));E.push(e);if(b){boss=e;log('⚠ '+(z==6?BN[SPW.rb].n:z==5?'최종 보스':ZN[z]+' 보스')+' 등장!')}}
+function hit(e,dm,cr){e.hp-=dm;e.hurt=.15;for(let i=0;i<7;i++)SP.push({x:e.x,y:e.y-e.r,vx:(rnd()-.5)*320,vy:-rnd()*260,t:.45,c:cr?'#ffd400':'#fff'});e.x+=P.face*4;fx({k:'txt',x:e.x,y:e.y-e.r*2,txt:Math.floor(dm),c:cr?'#ffd400':'#ff9a2e',t:.8,big:cr});if(e.hp<=0)kill(e)}
+function dmg(e,m){const cr=rnd()<.1;hit(e,atk()*m*(.9+rnd()*.2)*(cr?2:1),cr)}
+function drop(g,z){const s=rnd()<.5?'w':'a',it={s,g,z,plus:0,n:GR[g]+' '+PF[z]+(s=='w'?CL[P.cls].w:'방어구')};
+ if(sc(it)>sc(P.eq[s])){P.eq[s]=it;log('장착: '+nm(it))}else{const v=Math.floor(sc(it));P.gold+=v;log(nm(it)+' 판매 +'+v+'G')}}
+function kill(e){E.splice(E.indexOf(e),1);if(e.b)boss=E.find(x=>x.b)||null;{const z=e.z,q=NP[z]&&NP[z].q[P.q[z]];if(q&&P.qa[z]&&P.qp[z]<q.n&&((q.k=='boss')==!!e.b)){P.qp[z]++;if(P.qp[z]>=q.n)log('✅ 목표 달성! NPC에게 돌아가 보고하세요: '+q.t)}}P.gold+=Math.floor(e.lv*(e.b?20:2));
+ if(P.lv<50){P.xp+=need(e.lv)/2*(e.b?1:.05)*Math.max(.1,1-(P.lv-e.lv)*.1);
+  while(P.lv<50&&P.xp>=need(P.lv)){P.xp-=need(P.lv);P.lv++;P.sp++;P.hp=mhp();fx({k:'lv',t:1.4});log('🎉 레벨 '+P.lv+' 달성! 스킬 포인트 +1');
+   if(P.lv==20||P.lv==40)log('⭐ 전직이 가능합니다!');if(P.lv==50){P.xp=0;log('👑 50레벨! 최종 보스전과 🐲 용왕 레이드가 열렸습니다')}}}
+ if(e.b){P.st+=5;if(e.z==6&&e.sealed&&boss){log('🔒 봉쇄룡 처치! 남은 봉쇄룡 '+E.filter(x=>x.b).length+'마리')}else if(e.z==6){const R=RD[RT];if(e.sealed){for(let i=0;i<3;i++)drop(5,6);P.st+=40;P.seal=(P.seal||0)+1;log('🔓 봉쇄 용들의 레이드 클리어! 추가 신화 장비 3개 + 강화석 40')}R.g.forEach(g_=>drop(g_,6));P.st+=R.st;P.gold+=R.gold;P.rd=P.rd||{};P.rd[R.k]=pk(R.k);P.raid=(P.raid||0)+1;log('🐲 '+R.n+' 클리어! 신화 장비 '+R.g.length+'개 + 강화석 '+(R.st+5)+' + '+R.gold+'G ('+rdLeft(R.k)+' 초기화)')}else if(e.z==5){drop(5,5);drop(5,5);P.clear++;log('🏆 최종 보스 처치! 난이도 '+(P.clear+1)+' 개방')}else{drop([2,3,3,4,4][e.z],e.z);log('보스 처치! 강화석 +5')}}
+ else{if(rnd()<.15)P.st++;if(rnd()<.12)drop(rnd()<.6?0:rnd()<.7?1:2,e.z)}renderUI()}
+function attack(){if(P.ac>0||P.stun>0)return;const c=CL[P.cls];P.ac=.45;P.sw=.25;
+ if(c.r>100)PJ.push({x:P.x+P.face*20,y:P.y-28,vx:P.face*480,c:c.c,t:1.2,mg:P.cls=='마법사'});
+ else{let n=0;E.slice().forEach(e=>{const dx=(e.x-P.x)*P.face;if(n<3&&dx>-e.r&&dx<c.r+e.r&&Math.abs(e.y-P.y)<60){n++;dmg(e,1)}});fx({k:'slash',x:P.x+P.face*30,y:P.y-26,f:P.face,c:c.c,t:.18})}}
+function use(i){if(!P||P.sk[i]<1||P.cd[i]>0)return;const L=P.sk[i],c=CL[P.cls];
+ if(i==0){P.cd[0]=3;P.sw=.3;fx({k:'beam',x:P.x,y:P.y-26,f:P.face,c:c.c,t:.3});E.slice().forEach(e=>{const dx=(e.x-P.x)*P.face;if(dx>-e.r&&dx<c.r*2+e.r&&Math.abs(e.y-P.y)<70)dmg(e,2.5+.4*L)})}
+ else if(i==1){P.cd[1]=6;fx({k:'ring',x:P.x,y:P.y-20,c:c.c,t:.45});E.slice().forEach(e=>{if(Math.hypot(e.x-P.x,e.y-e.r-P.y+20)<150+e.r)dmg(e,1.4+.25*L)})}
+ else{P.cd[2]=12;P.hp=Math.min(mhp(),P.hp+mhp()*(.25+.05*L));fx({k:'txt',x:P.x,y:P.y-70,txt:'+HP',c:'#4f8',t:.9})}}
+function dust(x,y){for(let i=0;i<6;i++)SP.push({x,y,vx:(rnd()-.5)*140,vy:-rnd()*50,t:.4,c:'#fff9',g:0})}function hurtP(dm,fx0){shake=8;P.hp-=dm;P.inv=1.2;P.stun=.3;P.vx=(P.x>fx0?1:-1)*260;P.vy=-300;P.onG=0;fx({k:'txt',x:P.x,y:P.y-60,txt:'-'+Math.floor(dm),c:'#f55',t:.7})}
+function upd(dt){if(!P||DLG)return;T+=dt;
+ for(let i=0;i<3;i++)P.cd[i]=Math.max(0,P.cd[i]-dt);P.ac-=dt;P.sw-=dt;P.inv-=dt;P.stun-=dt;P.drop-=dt;P.hp=Math.min(mhp(),P.hp+mhp()*.01*dt);
+ const L=keys.a||keys.arrowleft,R=keys.d||keys.arrowright,J=keys[' ']||keys.w||keys.arrowup,D=keys.s||keys.arrowdown;
+ if(P.stun<=0){P.vx=((R?1:0)-(L?1:0))*175;if(P.vx)P.face=P.vx>0?1:-1;if(keys.x||keys.j||keys.z)attack();
+  if(J&&P.onG){if(D&&P.y<GY-1){P.drop=.3;P.y+=3}else{P.vy=-540;dust(P.x,P.y)}P.onG=0}}
+ const py=P.y;P.vy+=1500*dt;P.x=Math.max(14,Math.min(WW-14,P.x+P.vx*dt));P.y+=P.vy*dt;P.onG=0;
+ if(P.vy>=0&&P.drop<=0)for(const p of PL)if(py<=p.y+1&&P.y>=p.y&&P.x>p.x-6&&P.x<p.x+p.w+6){P.y=p.y;P.vy=0;P.onG=1;break}
+ if(P.y>GY){P.y=GY;P.vy=0;P.onG=1}
+ for(const e of E){e.hurt-=dt;const ch=Math.abs(P.y-e.pl.y)<4&&Math.abs(P.x-e.x)<(e.b?500:240);if(ch)e.dir=P.x>e.x?1:-1;e.x+=e.dir*e.sp*dt*(ch?1.3:.6);
+  if(e.x<e.pl.x+e.r){e.x=e.pl.x+e.r;e.dir=1}if(e.x>e.pl.x+e.pl.w-e.r){e.x=e.pl.x+e.pl.w-e.r;e.dir=-1}
+  if(P.inv<=0&&Math.abs(e.x-P.x)<e.r+10&&Math.abs(e.y-e.r-P.y+22)<e.r+22)hurtP(e.dmg,e.x);
+  if(e.b&&e.z==6){const ph=e.hp/e.mh>.66?0:e.hp/e.mh>.33?1:2;if(e.ph!==ph){if(e.ph!==undefined){log('🔥 '+BN[e.rb||0].n+' '+(ph+1)+'페이즈! 졸개 소환');shake=14;spawn(false);spawn(false)}e.ph=ph}}if(e.b&&(e.sh-=dt)<=0){const ph=e.ph||0;e.sh=e.z==6?1.3-ph*.3:e.z==5?1.4:2.4;const n=e.z==6?5+ph*2+BN[e.rb||0].dn:e.z==5?5:3;for(let i=0;i<n;i++){const a=Math.atan2(P.y-22-e.y+e.r,P.x-e.x)+(i-(n-1)/2)*.28;PR.push({x:e.x,y:e.y-e.r,vx:Math.cos(a)*(e.z==6?BN[e.rb||0].sp:230),vy:Math.sin(a)*(e.z==6?BN[e.rb||0].sp:230),dm:e.dmg*.5,t:4})}}}
+ for(let i=PR.length-1;i>=0;i--){const p=PR[i];p.x+=p.vx*dt;p.y+=p.vy*dt;p.t-=dt;if(P.inv<=0&&Math.hypot(p.x-P.x,p.y-P.y+22)<18){hurtP(p.dm,p.x);p.t=0}if(p.t<=0)PR.splice(i,1)}
+ for(let i=PJ.length-1;i>=0;i--){const p=PJ[i];p.x+=p.vx*dt;p.t-=dt;const e=E.find(e=>Math.abs(e.x-p.x)<e.r+8&&Math.abs(e.y-e.r-p.y)<e.r+10);if(e){dmg(e,1);p.t=0}if(p.t<=0)PJ.splice(i,1)}
+ if(zn<5&&E.length<8)spawn(false);
+ if(P.hp<=0){P.hp=mhp();E=[];PR=[];PJ=[];boss=null;P.x=100;P.y=GY;log('💀 쓰러졌습니다... 마을에서 부활했습니다.')}
+ for(let i=FX.length-1;i>=0;i--)if((FX[i].t-=dt)<=0)FX.splice(i,1);
+ for(let i=SP.length-1;i>=0;i--){const s=SP[i];s.x+=s.vx*dt;s.y+=s.vy*dt;if(s.g!==0)s.vy+=600*dt;if((s.t-=dt)<=0)SP.splice(i,1)}shake=Math.max(0,shake-dt*20);cam+=(Math.max(0,Math.min(WW-W,P.x-W/2))-cam)*Math.min(1,dt*6)}
+function el(x,y,rx,ry,c){g.fillStyle=c;g.beginPath();g.ellipse(x,y,rx,ry,0,0,7);g.fill()}
+function mob(e){el(e.x,e.y,e.r*1.1,4,'#0004');g.save();g.translate(e.x,e.y);const z=e.z,r=e.r,q=1+Math.sin(T*6+e.x)*.07,w=e.dir;g.scale(w,1);
+ if(z==3||z>=5){g.fillStyle=MC[z];for(const s of[-1,1]){g.beginPath();g.moveTo(0,-r*1.2);g.lineTo(s*r*1.5,-r*(2.1+Math.sin(T*8)*.3));g.lineTo(s*r*.8,-r*.6);g.fill()}}
+ if(z==1||z==2){g.fillStyle=MC[z];for(const s of[-1,1]){g.beginPath();g.moveTo(s*r*.9,-r*1.4);g.lineTo(s*r*1.6,-r*1.7);g.lineTo(s*r*.9,-r*.9);g.fill()}}
+ if(z>=4){g.fillStyle='#fdd';for(const s of[-1,1]){g.beginPath();g.moveTo(s*r*.5,-r*1.8);g.lineTo(s*r*.8,-r*2.4);g.lineTo(s*r*.95,-r*1.6);g.fill()}}
+ el(0,-r*.9*q,r*1.1,r*.9*q,e.hurt>0?'#fff':(e.rb!==undefined?BN[e.rb].c:MC[z]));el(-r*.3,-r*1.3,r*.3,r*.2,'#fff6');
+ for(const s of[-.35,.35]){el(s*r+r*.15,-r,r*.22,r*.28,'#fff');el(s*r+r*.25,-r,r*.1,r*.15,'#222')}
+ g.strokeStyle='#222';g.lineWidth=2;g.beginPath();g.arc(r*.15,-r*.6,r*.18,0,3.14);g.stroke();
+ if(e.b){g.fillStyle='#fc3';g.beginPath();g.moveTo(-r*.6,-r*1.75);g.lineTo(-r*.6,-r*2.2);g.lineTo(-r*.3,-r*1.95);g.lineTo(0,-r*2.3);g.lineTo(r*.3,-r*1.95);g.lineTo(r*.6,-r*2.2);g.lineTo(r*.6,-r*1.75);g.fill()}
+ g.restore();g.textAlign='center';g.font='bold 11px sans-serif';g.lineWidth=3;g.strokeStyle='#000';g.fillStyle='#fff';g.strokeText('Lv.'+e.lv+' '+MN[e.z],e.x,e.y+15);g.fillText('Lv.'+e.lv+' '+MN[e.z],e.x,e.y+15);if(e.hp<e.mh&&!e.b){g.fillStyle='#000a';g.fillRect(e.x-18,e.y-r*2-8,36,5);g.fillStyle='#f44';g.fillRect(e.x-17,e.y-r*2-7,34*e.hp/e.mh,3)}}
+function dragon(mv,tr){const big=tr>1,c=big?'#e8a817':'#c93a3a',d=big?'#a0700a':'#8a2222',b=big?'#fff0a8':'#ffc98a',f=Math.sin(T*(mv?11:4)),tl=Math.sin(T*5)*5;g.save();if(big)g.scale(1.2,1.2);g.fillStyle=d;g.beginPath();g.moveTo(-6,-30);g.lineTo(-48,-76+f*14);g.lineTo(-38,-50+f*8);g.lineTo(-30,-62+f*12);g.lineTo(-20,-40+f*4);g.lineTo(-10,-48);g.fill();g.strokeStyle=c;g.lineWidth=11;g.lineCap='round';g.beginPath();g.moveTo(-26,-18);g.quadraticCurveTo(-52,-10,-64,-20+tl);g.stroke();g.fillStyle=d;g.beginPath();g.moveTo(-66,-24+tl);g.lineTo(-78,-18);g.lineTo(-64,-14);g.fill();const l=mv?Math.sin(T*14)*5:0;el(-16+l,-4,6,7,d);el(16-l,-4,6,7,d);el(-6-l,-4,6,7,c);el(26+l,-4,6,7,c);el(0,-19,32,15,c);el(2,-12,25,7,b);g.fillStyle=d;for(let i=-3;i<3;i++){g.beginPath();g.moveTo(i*9-4,-31);g.lineTo(i*9,-39);g.lineTo(i*9+4,-31);g.fill()}g.strokeStyle=c;g.lineWidth=13;g.beginPath();g.moveTo(24,-22);g.quadraticCurveTo(38,-30,40,-44);g.stroke();el(48,-46,14,9,c);el(56,-43,9,5,b);g.fillStyle=big?'#fff':'#ffd';g.beginPath();g.moveTo(40,-52);g.lineTo(32,-66);g.lineTo(47,-54);g.moveTo(46,-54);g.lineTo(42,-68);g.lineTo(53,-54);g.fill();el(49,-48,3,3,'#fe3');el(49,-48,1.2,2.5,'#000');if(P.sw>0){const ga=g.globalAlpha;for(let i=0;i<5;i++){g.globalAlpha=ga*(.8-i*.12);el(64+i*16,-43+Math.sin(T*30+i)*3,8+i*3,5+i*2,i%2?'#fa3':'#f60')}g.globalAlpha=ga}g.restore()}
+const CP={'검사':['#e8b030','#c0392b','#7a1f1a'],'궁수':['#7a4a1e','#2f8f46','#1f5a2e'],'마법사':['#dfe6ff','#4a62d8','#2a3a8a'],'도적':['#2a2a38','#5b2f86','#30184a'],'기사':['#c0392b','#d9a21b','#8a6410']},SKIN='#ffd9b8';
+const rr=(x,y,w,h,r,f)=>{g.beginPath();g.roundRect(x,y,w,h,r);g.fillStyle=f;g.fill();g.strokeStyle='#0006';g.lineWidth=1.2;g.stroke()};
+function hero(){const t=P.cls,[hc,mc,dc]=CP[t],tr=P.tier,k=CL[t].c,mv=Math.abs(P.vx)>5&&P.onG,st=mv?Math.sin(T*14):0,bob=mv?Math.abs(st)*2:Math.sin(T*2.5),sw=Math.sin(T*3)*2+(mv?5:0),mt=t=='기사'&&tr>0,PI=Math.PI,gold=tr>1?'#ffd24a':'#dfe6f2';
+ el(P.x,P.y,mt?36:15,4,'#0004');if(P.inv>0&&((T*20)|0)%2)g.globalAlpha=.5;
+ g.save();g.translate(P.x,P.y-(mt?0:bob*.5));g.scale(P.face,1);g.lineJoin='round';
+ if(tr>0){const ga=g.globalAlpha;g.globalAlpha=ga*(.16+.06*Math.sin(T*4));el(0,-26,tr>1?32:25,tr>1?46:38,tr>1?'#ffd24a':k);g.globalAlpha=ga;if(tr>1)for(let j=0;j<5;j++)el(Math.sin(T*2+j*1.7)*22,-10-((T*18+j*19)%60),1.6,1.6,'#ffe27a')}
+ if(mt){dragon(mv,tr);g.translate(0,-26)}
+ if(t=='검사'||t=='기사'||t=='도적'){g.fillStyle=dc;g.beginPath();g.moveTo(-5,-34);g.quadraticCurveTo(-24-sw,-22,-20-sw*1.6,-1);g.lineTo(-3,-8);g.fill()}
+ if(t=='궁수'){rr(-14,-38,7,20,2,'#7a4a1e');g.strokeStyle='#eee';g.lineWidth=1.5;for(let j=0;j<3;j++){g.beginPath();g.moveTo(-12+j*2.5,-38);g.lineTo(-13+j*2.5,-47);g.stroke()}}
+ if(t=='마법사'){g.fillStyle=mc;g.beginPath();g.moveTo(-9,-24);g.lineTo(-15,-1);g.quadraticCurveTo(0,3,15,-1);g.lineTo(9,-24);g.fill();g.fillStyle=dc;g.fillRect(-14,-5,28,3);g.fillStyle='#ffd24a';g.fillRect(-14,-5,28,1)}
+ else{const a=st*5;rr(-7+a,-14,6,13,2,dc);rr(1-a,-14,6,13,2,dc);rr(-8+a,-3,9,4,2,'#2a2230');rr(0-a,-3,9,4,2,'#2a2230')}
+ rr(-10,-34,20,22,6,mc);g.fillStyle='#fff3';g.fillRect(-6,-32,3,15);rr(-10,-17,20,4,1,dc);g.fillStyle='#ffd24a';g.fillRect(-2,-17,4,4);
+ if(t=='마법사'){g.fillStyle=dc;g.beginPath();g.moveTo(-10,-34);g.lineTo(0,-24);g.lineTo(10,-34);g.fill()}
+ if(t=='검사'||t=='기사'){g.fillStyle='#fff9';g.fillRect(-1,-30,2,9);g.fillRect(-4,-28,8,2)}
+ if(t=='기사'||tr>0){el(-9,-33,6,4,gold);el(9,-33,6,4,gold)}
+ g.strokeStyle=mc;g.lineWidth=5;g.lineCap='round';g.beginPath();g.moveTo(-7,-30);g.lineTo(-9,-19);g.stroke();el(-9,-18,3.3,3.3,SKIN);
+ const hy=-45+(mv?Math.sin(T*28)*.7:0),bl=(T%3.4)<.12,ey=t=='기사'?3:1;
+ if(t=='궁수'){g.fillStyle=hc;g.beginPath();g.moveTo(-10,hy-2);g.quadraticCurveTo(-27-sw*2,hy+6,-20-sw*2,hy+26);g.lineTo(-8,hy+8);g.fill()}
+ if(t=='마법사'){el(-5,hy+8,13,15,hc)}
+ el(0,hy,15,14,SKIN);g.strokeStyle='#0005';g.lineWidth=1.2;g.beginPath();g.ellipse(0,hy,15,14,0,0,7);g.stroke();el(-14,hy+1,2.5,3.5,SKIN);el(8,hy+5+ey-1,3,1.8,'#ff9a9a99');
+ if(bl){g.strokeStyle='#222';g.lineWidth=1.6;for(const ex of[6,-3]){g.beginPath();g.moveTo(ex-2.5,hy+ey+1);g.lineTo(ex+2.5,hy+ey+1);g.stroke()}}
+ else for(const ex of[6,-3]){el(ex,hy+ey,3.4,4.4,'#fff');el(ex+.8,hy+ey+.5,2.3,3.3,dc);el(ex+.8,hy+ey+.5,1,1.6,'#111');el(ex+1.5,hy+ey-.8,.9,.9,'#fff')}
+ if(P.sw>0)el(2,hy+9,2,2.5,'#a33');else{g.strokeStyle='#a55';g.lineWidth=1.2;g.beginPath();g.arc(2,hy+7.5,2.2,.2,2.9);g.stroke()}
+ if(t=='검사'){g.fillStyle=hc;g.beginPath();g.moveTo(-15,hy-2);g.lineTo(-14,hy-14);g.lineTo(-8,hy-9);g.lineTo(-5,hy-19);g.lineTo(0,hy-11);g.lineTo(6,hy-18);g.lineTo(9,hy-9);g.lineTo(15,hy-12);g.lineTo(15,hy-1);g.quadraticCurveTo(8,hy-7,0,hy-6);g.quadraticCurveTo(-8,hy-7,-15,hy-2);g.fill();rr(-15,hy-7,30,4,1,'#c0392b');g.fillStyle='#c0392b';g.beginPath();g.moveTo(-14,hy-6);g.lineTo(-27-sw*1.5,hy-1);g.lineTo(-14,hy-3);g.fill()}
+ if(t=='궁수'){g.fillStyle=hc;g.beginPath();g.ellipse(0,hy-5,16,11,0,PI,0);g.lineTo(15,hy-1);g.quadraticCurveTo(6,hy-8,-3,hy-6);g.quadraticCurveTo(-10,hy-6,-15,hy-1);g.fill();rr(-15,hy-7,30,3,1,mc);g.strokeStyle='#eee';g.lineWidth=2;g.beginPath();g.moveTo(-9,hy-7);g.lineTo(-15,hy-20);g.stroke();g.fillStyle='#fff';g.beginPath();g.moveTo(-15,hy-20);g.lineTo(-18,hy-14);g.lineTo(-12,hy-15);g.fill()}
+ if(t=='마법사'){g.fillStyle=hc;g.beginPath();g.ellipse(0,hy-6,15,8,0,PI,0);g.fill();el(0,hy-9,21,5,mc);g.fillStyle=mc;g.beginPath();g.moveTo(-12,hy-10);g.quadraticCurveTo(-4,hy-30,8-sw,hy-42);g.lineTo(13,hy-10);g.fill();rr(-13,hy-13,26,4,1,dc);g.fillStyle='#ffd24a';g.beginPath();g.arc(1,hy-24,2.5,0,7);g.fill()}
+ if(t=='도적'){g.fillStyle=hc;g.beginPath();g.ellipse(0,hy-5,16,12,0,PI,0);g.lineTo(15,hy);g.quadraticCurveTo(6,hy-7,-3,hy-5);g.quadraticCurveTo(-10,hy-5,-15,hy);g.fill();rr(-12,hy+4,27,9,3,'#a22');g.fillStyle='#a22';g.beginPath();g.moveTo(-11,hy+7);g.lineTo(-27-sw*2,hy+14);g.lineTo(-12,hy+12);g.fill()}
+ if(t=='기사'){g.fillStyle=gold;g.beginPath();g.ellipse(0,hy-3,16,13,0,PI,0);g.lineTo(16,hy+1);g.lineTo(-16,hy+1);g.fill();g.strokeStyle='#0006';g.lineWidth=1.2;g.stroke();g.fillStyle='#223';g.fillRect(-11,hy-3,25,3);rr(-1,hy-14,3,12,1,mc);g.fillStyle=hc;g.beginPath();g.moveTo(-2,hy-15);g.quadraticCurveTo(-18-sw,hy-26,-24-sw*2,hy-8);g.quadraticCurveTo(-10,hy-14,-2,hy-15);g.fill();if(tr>1){g.fillStyle='#ffd24a';g.beginPath();g.moveTo(-12,hy-8);g.lineTo(-22,hy-20);g.lineTo(-8,hy-13);g.fill()}}
+ const sa=P.sw>0?(1-P.sw/.28)*2.4-1.2:(P.onG?.35+Math.sin(T*3)*.05+st*.15:-.5);
+ g.save();g.translate(7,-29);g.rotate(sa);g.strokeStyle=mc;g.lineWidth=6;g.lineCap='round';g.beginPath();g.moveTo(0,0);g.lineTo(11,0);g.stroke();el(12,0,3.8,3.8,SKIN);
+ if(t=='검사'){if(tr>0){g.shadowColor='#8ef';g.shadowBlur=10}g.fillStyle='#e8eef8';g.beginPath();g.moveTo(15,-2.4);g.lineTo(40,-1.6);g.lineTo(47,0);g.lineTo(40,1.6);g.lineTo(15,2.4);g.fill();g.shadowBlur=0;g.fillStyle='#9ac';g.fillRect(15,-.4,28,.8);rr(12,-6.5,3,13,1,'#d9a21b');rr(6,-1.6,7,3.2,1,'#6a3a1a')}
+ if(t=='궁수'){g.strokeStyle='#a66a2c';g.lineWidth=3;g.beginPath();g.arc(14,0,19,-1.3,1.3);g.stroke();const ax=14+19*Math.cos(1.3),ay=19*Math.sin(1.3);g.strokeStyle='#ddd';g.lineWidth=1;g.beginPath();g.moveTo(ax,-ay);g.lineTo(P.ac>.25?12:2,0);g.lineTo(ax,ay);g.stroke();if(P.ac<.2){g.strokeStyle='#ccc';g.lineWidth=1.8;g.beginPath();g.moveTo(2,0);g.lineTo(32,0);g.stroke();g.fillStyle='#fff';g.beginPath();g.moveTo(32,-3);g.lineTo(38,0);g.lineTo(32,3);g.fill()}}
+ if(t=='마법사'){g.strokeStyle='#8a5a2a';g.lineWidth=3.5;g.beginPath();g.moveTo(-6,0);g.lineTo(34,0);g.stroke();const o=6+Math.sin(T*5)*1;g.globalAlpha*=.35;el(39,0,o+5,o+5,tr>1?'#ffd24a':'#6cf');g.globalAlpha/=.35;el(39,0,o,o,tr>1?'#ffe27a':'#6cf');el(37,-2,2,2,'#fff')}
+ if(t=='도적'){g.fillStyle='#dde';g.beginPath();g.moveTo(14,-2.4);g.lineTo(30,0);g.lineTo(14,2.4);g.fill();rr(9,-1.8,5,3.6,1,'#733');rr(13,-5,2.4,10,1,'#c8c8d8')}
+ if(t=='기사'){rr(2,-1.8,44,3.6,1,'#9a7a4a');g.fillStyle='#e8eef8';g.beginPath();g.moveTo(46,-5);g.lineTo(64,0);g.lineTo(46,5);g.fill();g.fillStyle='#c0392b';g.beginPath();g.moveTo(36,-1.8);g.lineTo(28-sw,-10);g.lineTo(44,-1.8);g.fill()}
+ g.restore();g.restore();g.globalAlpha=1;g.textAlign='center';g.font='bold 12px sans-serif';g.fillStyle='#000a';g.fillRect(P.x-32,P.y+5,64,16);g.fillStyle=tr>1?'#ffe27a':'#fff';g.fillText(CL[P.cls].t[P.tier],P.x,P.y+17)}
+function heroOld(){el(P.x,P.y,P.cls=='기사'&&P.tier>0?36:14,4,'#0004');const c=CL[P.cls],mv=Math.abs(P.vx)>5&&P.onG,b=mv?Math.sin(T*14)*4:0;
+ if(P.inv>0&&((T*20)|0)%2)g.globalAlpha=.5;g.save();g.translate(P.x,P.y-(mv?Math.abs(Math.sin(T*14))*2:0));g.scale(P.face,1);if(P.cls=='기사'&&P.tier>0){dragon(mv,P.tier);g.translate(0,-26)}
+ g.fillStyle='#345';g.fillRect(-7,-12,6,12+b/2);g.fillRect(1,-12,6,12-b/2);
+ const hc=['#f2c14e','#7a4a1e','#e8e8ff','#222','#c33'][['검사','궁수','마법사','도적','기사'].indexOf(P.cls)];
+ g.fillStyle=c.c;g.beginPath();g.roundRect(-10,-30,20,22,5);g.fill();g.fillStyle='#0003';g.fillRect(-10,-14,20,4);
+ const sw=P.sw>0?(1-P.sw/.28)*2.2-1.1:.3;g.save();g.translate(8,-22);g.rotate(sw);g.strokeStyle='#ddd';g.lineWidth=3;
+ if(P.cls=='궁수'){g.strokeStyle='#a63';g.beginPath();g.arc(6,0,14,-1.2,1.2);g.stroke()}
+ else{g.beginPath();g.moveTo(0,0);g.lineTo(P.cls=='도적'?18:30,0);g.stroke();if(P.cls=='마법사'){g.strokeStyle='#a63';g.beginPath();g.moveTo(0,0);g.lineTo(30,0);g.stroke();el(32,0,5,5,'#6cf')}if(P.cls=='기사'){g.fillStyle='#ddd';g.beginPath();g.moveTo(30,-4);g.lineTo(40,0);g.lineTo(30,4);g.fill()}}
+ g.restore();el(0,-42,14,13,'#ffd9b8');g.fillStyle=hc;g.beginPath();g.ellipse(0,-46,15,11,0,3.14,6.28);g.fill();g.fillRect(-15,-47,5,12);
+ el(5,-41,2.5,3.5,'#222');el(-4,-41,2.5,3.5,'#222');el(0,-37,3,2,'#f99');if(P.cls=='도적'){g.fillStyle='#222';g.fillRect(-14,-45,28,4)}
+ g.restore();g.globalAlpha=1;g.textAlign='center';g.font='bold 12px sans-serif';g.fillStyle='#000a';g.fillRect(P.x-32,P.y+5,64,16);g.fillStyle='#fff';g.fillText(CL[P.cls].t[P.tier],P.x,P.y+17)}
+function draw(){const[b1,b2]=BG[zn],gr=g.createLinearGradient(0,0,0,H);gr.addColorStop(0,b1);gr.addColorStop(1,b2);g.fillStyle=gr;g.fillRect(0,0,W,H);if(!P)return;el(650,90,70,70,'#fff3');el(650,90,38,38,zn==0||zn==2?'#fff6b0':'#e8e8ff');
+ for(const[k,al,sp]of[[0,.12,.2],[1,.2,.45]]){g.fillStyle='rgba(0,0,0,'+al+')';g.beginPath();g.moveTo(0,H);for(let x=0;x<=W;x+=20)g.lineTo(x,300-k*30+Math.sin((x+cam*sp)/(110-k*40))*(40+k*10)+k*20);g.lineTo(W,H);g.fill()}
+ g.fillStyle='rgba(0,0,0,.28)';for(let i=0;i<14;i++){const x=((i*140-cam*.6)%(W+140)+W+140)%(W+140)-70,h=50+(i*37%40);g.beginPath();if(zn>=4){g.rect(x-18,GY-80-h,36,h+90);g.rect(x-26,GY-100-h,12,20);g.rect(x+14,GY-100-h,12,20)}else{g.moveTo(x-22,GY+10);g.lineTo(x,GY-60-h);g.lineTo(x+22,GY+10)}g.fill()}g.fillStyle=zn==0?'#fff':zn==2?'#fffc':zn==3?'#fa5':'#ccf';for(const p of BP){p.y+=(zn==3?-1:1)*p.s*.15;if(p.y>GY)p.y=0;if(p.y<0)p.y=GY;const x=((p.x-cam*(.3+p.s*.1))%W+W)%W;if(zn==0)el(x,p.y*.6,p.s*14,p.s*5,'#fff9');else{g.beginPath();g.arc(x,p.y,p.s*.8,0,7);g.fill()}}
+ g.save();g.translate(-Math.floor(cam)+(rnd()-.5)*shake,(rnd()-.5)*shake);
+ for(const p of PL){g.fillStyle=GD[zn];g.fillRect(p.x,p.y,p.w,p===PL[0]?H:14);g.fillStyle=GG[zn];g.fillRect(p.x,p.y,p.w,6);for(let x=p.x;x<p.x+p.w;x+=16)el(x+8,p.y+6,8,4,GG[zn])}
+ npcDraw();for(const e of E)mob(e);for(const s of SP){g.globalAlpha=Math.min(1,s.t*3);g.fillStyle=s.c;g.fillRect(s.x-2,s.y-2,4,4)}g.globalAlpha=1;
+ g.fillStyle='#f8a';for(const p of PR){g.beginPath();g.arc(p.x,p.y,6,0,7);g.fill()}
+ for(const p of PJ){if(p.mg){el(p.x,p.y,8,8,p.c);el(p.x,p.y,4,4,'#fff')}else{g.strokeStyle='#a63';g.lineWidth=2;g.beginPath();g.moveTo(p.x-14*Math.sign(p.vx),p.y);g.lineTo(p.x,p.y);g.stroke()}}
+ hero();
+ g.textAlign='center';for(const f of FX){g.globalAlpha=Math.min(1,f.t*3);
+  if(f.k=='slash'){g.strokeStyle=f.c;g.lineWidth=6;g.beginPath();g.arc(f.x-f.f*20,f.y,50,f.f>0?-1:2.1,f.f>0?1:4.2);g.stroke()}
+  else if(f.k=='beam'){g.fillStyle=f.c;g.fillRect(f.f>0?f.x:f.x-240,f.y-8,240,16)}
+  else if(f.k=='ring'){g.strokeStyle=f.c;g.lineWidth=5;g.beginPath();g.arc(f.x,f.y,150*(1-f.t/.45)+10,0,7);g.stroke()}
+  else if(f.k=='lv'){g.strokeStyle='#fd4';g.lineWidth=4;g.beginPath();g.arc(P.x,P.y-20,(1.4-f.t)*60+10,0,7);g.stroke();g.font='bold 20px sans-serif';g.fillStyle='#fd4';g.strokeStyle='#a50';g.lineWidth=3;g.strokeText('LEVEL UP!',P.x,P.y-80-(1.4-f.t)*20);g.fillText('LEVEL UP!',P.x,P.y-80-(1.4-f.t)*20)}
+  else{g.font=(f.big?'bold 24px':'bold 17px')+' sans-serif';g.strokeStyle='#421';g.lineWidth=3;g.strokeText(f.txt,f.x,f.y-(1-f.t)*30);g.fillStyle=f.c;g.fillText(f.txt,f.x,f.y-(1-f.t)*30)}g.globalAlpha=1}
+ g.restore();
+ g.textAlign='left';g.font='bold 13px sans-serif';g.fillStyle='#000a';g.fillRect(8,8,170,24);g.fillStyle='#fff';g.fillText('📍 '+ZN[zn],16,25);{const q=NP[zn]&&NP[zn].q[P.q[zn]];if(q&&P.qa[zn]){g.fillStyle='#000a';g.fillRect(8,36,250,22);g.fillStyle='#fd6';g.fillText('📜 '+q.t+'  '+Math.min(P.qp[zn],q.n)+'/'+q.n,16,52)}}
+ if(boss){g.fillStyle='#000a';g.fillRect(W/2-202,10,404,18);g.fillStyle='#e33';g.fillRect(W/2-198,13,396*Math.max(0,boss.hp/boss.mh),12);g.fillStyle='#fff';g.textAlign='center';g.fillText(boss.z==6?bnm(boss):boss.z==5?'최종 보스':ZN[boss.z]+' 보스',W/2,42)}
+ const y=H-46;g.fillStyle='#1b2236e8';g.fillRect(0,y,W,46);g.fillStyle='#fc4';g.fillRect(0,y,W,2);
+ g.textAlign='left';g.fillStyle='#fff';g.font='bold 14px sans-serif';g.fillText('Lv.'+P.lv+'  '+CL[P.cls].t[P.tier],12,y+19);
+ const bar=(x,yy,w,h,v,c,t)=>{g.fillStyle='#000';g.fillRect(x,yy,w,h);g.fillStyle=c;g.fillRect(x+1,yy+1,(w-2)*Math.max(0,Math.min(1,v)),h-2);g.fillStyle='#fff';g.font='11px sans-serif';g.fillText(t,x+6,yy+h-3)};
+ bar(150,y+7,230,14,P.hp/mhp(),'#e44','HP '+Math.ceil(P.hp)+' / '+Math.floor(mhp()));
+ bar(150,y+26,230,12,P.lv>=50?1:P.xp/need(P.lv),'#fc3','EXP '+(P.lv>=50?'MAX':(P.xp/need(P.lv)*100).toFixed(1)+'%'));
+ for(let i=0;i<3;i++){const x=520+i*60;g.fillStyle=P.sk[i]?'#456':'#2336';g.fillRect(x,y+5,54,36);g.fillStyle='#fff';g.font='11px sans-serif';g.fillText((i+1)+' '+CL[P.cls].s[i].slice(0,4),x+4,y+27);
+  if(P.cd[i]>0){g.fillStyle='#000a';g.fillRect(x,y+5,54,36*P.cd[i]/[3,6,12][i])}}}
+function renderUI(){if(!P)return;const c=CL[P.cls];
+ let h=`<b>${c.t[P.tier]}</b> Lv.${P.lv}${P.clear?' · 칭호: 심연의 정복자':P.lv>=50?' · 칭호: 50레벨 달성자':''} · 💰${P.gold} · 💎강화석 ${P.st} · 스킬포인트 ${P.sp} · 📖 퀘스트 ${P.q.reduce((a,b)=>a+b,0)}/12<div>공격력 ${Math.floor(atk())} · 최대 HP ${Math.floor(mhp())}</div><div>`;
+ h+=c.s.map((n,i)=>`<button onclick="use(${i})">[${i+1}] ${n} Lv${P.sk[i]}</button><button onclick="inv(${i})" ${P.sp&&P.sk[i]<10?'':'disabled'}>+</button>`).join(' ')+'</div>';
+ for(const s of['w','a']){const it=P.eq[s];h+=`<div>${s=='w'?'무기':'방어구'}: ${it?nm(it)+' +'+it.plus+' ('+Math.floor(sc(it))+') <button onclick="enh(\''+s+'\')">강화</button>':'없음'}</div>`}
+ h+=`<button onclick="bs()">강화석 구매 30G</button><button onclick="saveG(1)">💾 저장</button>`;
+ if(P.tier<2&&P.lv>=20+20*P.tier)h+=`<button class="on" onclick="ct()">전직 → ${c.t[P.tier+1]}</button>`;
+ h+='<div>'+ZN.map((n,i)=>`<button ${i==zn?'class="on"':''} ${P.lv<ZS[i]?'disabled':''} onclick="go(${i})">${n}</button>`).join('')+`</div>${zn==6?RD.map((r,i)=>`<button ${i==RT?'class="on"':''} onclick="setRT(${i})">${r.n} ${rdOK(i)?'🟢':'✔ '+rdLeft(r.k)}</button>`).join(''):''}${zn==6?'<br>'+BN.map((b,i)=>`<button ${i==RB?'class="on"':''} onclick="setRB(${i})">${b.n}</button>`).join('')+'<div style="font-size:12px;opacity:.8">🔒 도전할 때마다 1% 확률로 「봉쇄 용들의 레이드」가 열려요!</div>':'<br>'}<button onclick="sb()">${zn==6?'🐲 '+RD[RT].n+' · '+BN[RB].n+' 도전'+(rdOK(RT)?'':' (클리어 완료)'):zn==5?'최종 보스 도전 (난이도 '+(P.clear+1)+')':'지역 보스 소환'}</button>`;
+ $('ui').innerHTML=h}
+function inv(i){if(P.sp>0&&P.sk[i]<10){P.sp--;P.sk[i]++;renderUI()}}
+function ct(){P.tier++;P.hp=mhp();log('✨ 전직 완료: '+CL[P.cls].t[P.tier]+' (공격력 상승)'+(P.cls=='기사'?' 🐉 용을 타고 전투합니다!':''));renderUI()}
+function bs(){if(P.gold>=30){P.gold-=30;P.st++;renderUI()}else log('골드가 부족합니다')}
+function sb(){if(!boss&&P.lv>=ZS[zn]){if(zn==6&&!rdOK(RT)){log('⏳ 이번 '+['일간','주간','월간'][RT]+' 레이드는 이미 클리어했어요. '+rdLeft(RD[RT].k)+' 초기화됩니다');return}if(zn>=5)E=[];if(zn==6){if(rnd()<.01){log('🔒 봉인이 풀린다…! 【봉쇄 용들의 레이드】가 열렸습니다!');shake=14;for(let i=0;i<3;i++){SPW={rb:i,sealed:1};spawn(true)}}else{SPW={rb:RB,sealed:0};spawn(true)}}else spawn(true)}}
+function enh(s){const it=P.eq[s];if(!it||it.plus>=10)return;const n=it.plus+1;if(P.st<n)return log('강화석이 부족합니다 (필요 '+n+')');P.st-=n;
+ if(Math.random()<Math.max(.3,1-.07*it.plus)){it.plus++;log('✅ 강화 성공 +'+it.plus)}else{if(it.plus>=5)it.plus--;log('❌ 강화 실패')}renderUI()}
+addEventListener('keydown',e=>{const k=e.key.toLowerCase();keys[k]=1;if(k=='1'||k=='2'||k=='3')use(+k-1);if(k=='f')talk();if(k=='b')sb();if(k.startsWith('arrow')||k==' ')e.preventDefault()});
+addEventListener('keyup',e=>keys[e.key.toLowerCase()]=0);
+document.querySelectorAll('#tc button').forEach(b=>{const k=b.dataset.k;b.onpointerdown=e=>{e.preventDefault();if(k=='f')talk();else if('123'.includes(k))use(+k-1);else keys[k]=1};b.onpointerup=b.onpointerleave=()=>{if(!'123'.includes(k))keys[k]=0}});
+addEventListener('blur',()=>{keys={}});
+C.addEventListener('pointerdown',ev=>{if(!P||DLG)return;const r=C.getBoundingClientRect(),wx=(ev.clientX-r.left)*W/r.width+cam;if(Math.abs(wx-P.x)>8)P.face=wx>P.x?1:-1;keys.x=1;ev.preventDefault()});
+['pointerup','pointerleave','pointercancel'].forEach(t=>C.addEventListener(t,()=>{keys.x=0}));setInterval(()=>saveG(),5000);addEventListener('beforeunload',()=>saveG());addEventListener('pagehide',()=>saveG());if(hasSave())$('cont').style.display='';
+(function loop(t){const dt=Math.min(.05,(t-last)/1000||0);last=t;upd(dt);draw();updSk();requestAnimationFrame(loop)})(0);
+</script></body></html>
